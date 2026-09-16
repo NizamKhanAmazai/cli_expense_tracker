@@ -139,5 +139,5 @@ def start_cmd():
             # So it doesn't crash the whole loop.
             continue
 
-        # except Exception as e:
-        #     print(f"Error: {e}") 
+        except Exception as e:
+            print(f"Error: {e}") 
