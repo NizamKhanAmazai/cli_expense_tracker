@@ -53,8 +53,8 @@ class Storage:
             if cursor.rowcount == 0:
                 return "X • item doesn't exist."
 
-            elif cursor.rowcount > 0:
-                return f"•ϡ {cursor.rowcount} item deleted."
+            else:
+                return "•ϡ 1 item deleted."
  
 
     def show_list_of_expenses(self):

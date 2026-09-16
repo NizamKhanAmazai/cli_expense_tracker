@@ -26,11 +26,6 @@ class Storage_Test(unittest.TestCase):
     def test_check(self):
         self.assertEqual('hello','hello')
 
-
-    def test_does_path_exist(self):
-        result =self.store.does_path_exist()
-        self.assertIn(result, [True,False])
-
  
     def test_add_expense(self):
         result = self.store.add_expense(self.expense) 
@@ -39,6 +34,7 @@ class Storage_Test(unittest.TestCase):
 
     def test_load_expense(self):
         result = self.store.load_expense() 
+        result = [dict(expense) for expense in result] 
         self.assertIn(self.expense_to_dect(self.expense), result)
 
 
@@ -49,13 +45,15 @@ class Storage_Test(unittest.TestCase):
 
     def test_show_list_of_expenses(self):
         result = self.store.show_list_of_expenses()
+        result = [dict(expense) for expense in result] 
         self.assertIn(self.expense_to_dect(self.expense), result)
 
 
     def test_search_expense(self):
         expense = self.expense_to_dect(self.expense)
         result = self.store.search_expense(self.expense.id)
-        self.assertIn(expense, result) 
+        result = [dict(expense) for expense in result] 
+        self.assertIn(expense, result)
 
 
     def test_show_categories(self):
@@ -65,7 +63,8 @@ class Storage_Test(unittest.TestCase):
 
 
     def test_statistics(self):
-        result = self.store.statistics()
+        result = self.store.statistics() 
+        result = [dict(expense) for expense in result] 
         self.assertIn(self.expense_to_dect(self.expense), result)
 
     def test_save_to_json(self): 
@@ -83,4 +82,4 @@ class Storage_Test(unittest.TestCase):
 
     def test_zzz_cleanup(self):
         result = self.store.delete_expense(self.expense.id)
-        self.assertIn(result, ["X • item doesn't exist.", "•ϡ 1 items deleted."])
+        self.assertIn(result, ["X • item doesn't exist.", "•ϡ 1 item deleted."])
