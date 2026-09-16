@@ -1,6 +1,8 @@
+
 from pathlib import Path
-import json
-from dataclasses import asdict
+import json 
+from .db import init_db
+import sqlite3
 
 
 class Storage:
@@ -12,113 +14,85 @@ class Storage:
         self.fullPath = self.parentPath / self.fileName
         self.DB_PATH = self.parentPath / "expenses.db"
 
-    def does_path_exist(self):
-        """check does the file exist if not create it"""
-        if self.parentPath.exists():
-            if (self.parentPath / self.fileName).exists():
-                return True
-            else:
-                (self.parentPath / self.fileName).touch()
-                return False
-        else:
-            self.parentPath.mkdir()
-            return False
+    def initialize_database(self):
+        """creating the database"""
+        init_db(self.DB_PATH) 
 
     def load_expense(self):
-        try:
-            with open(self.fullPath, "r", encoding="utf-8") as jsonFile:
-                return json.load(jsonFile)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return []
+        with sqlite3.connect(self.DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row # lets us access columns by name
+            data = conn.execute("SELECT * FROM expenses ORDER BY date DESC").fetchall()
+        return data
 
     def add_expense(self, data):
-        """It save the data into the storage json/sqlite"""
+        """It save the data into the storage sqlite""" 
 
-        # check weather the folder and the file exist if not the function will create it
-        file = self.does_path_exist()
-        while not file:
-            file = self.does_path_exist()
+        with sqlite3.connect(self.DB_PATH) as conn:
+            conn.execute( """
+                INSERT INTO expenses(id, amount, category, description, date)
+                VALUES (?, ?, ?, ?, ?)
+                """, (
+                    data.id,
+                    data.amount,
+                    data.category,
+                    data.description,
+                    data.date.isoformat()
+                ))
+            conn.commit()
 
-        oldData = self.load_expense()
-        oldData.append(asdict(data))
+        return data 
 
-        try:
-            with open(self.fullPath, "w") as jsonFile:
-                json.dump(oldData, jsonFile, indent=4, default=str)
-        except Exception as e:
-            return e
-        else:
-            return data
-
-    def add_list_of_expenses(self, dataList):
-        """it add the list of expense model"""
-
-        dataList = [asdict(d) for d in dataList]
-        try:
-            with open(self.fullPath, "w") as file:
-                json.dump(dataList, file, indent=4, default=str)
-
-        except (FileNotFoundError, json.JSONDecodeError):
-            print("file error!")
+    # def add_list_of_expenses(self, dataList):
+    #     pass
 
     def delete_expense(self, id):
-        """it first load the json and get and find the match and delete it"""
-        expenseLists = self.load_expense()
-        remainingList = []
-        isDelete = 0
+        with sqlite3.connect(self.DB_PATH) as conn:
+            cursor = conn.execute("DELETE FROM expenses WHERE id = ?", (id,))
+            conn.commit()
 
-        for e in expenseLists:
-            if e["id"] == id:
-                isDelete += 1
-            else:
-                remainingList.append(e)
+            if cursor.rowcount == 0:
+                return "X • item doesn't exist."
 
-        try:
-            with open(self.fullPath, "w") as file:
-                json.dump(remainingList, file, indent=4, default=str)
-
-        except (FileNotFoundError, json.JSONDecodeError):
-            print("file error!")
-
-        if isDelete == 0:
-            return "X • item doesn't exist."
-
-        elif isDelete > 0:
-            return f"•ϡ {isDelete} items deleted."
+            elif cursor.rowcount > 0:
+                return f"•ϡ {cursor.rowcount} item deleted."
+ 
 
     def show_list_of_expenses(self):
         expenseList = self.load_expense()
         return expenseList
 
-    def search_expense(self, id):
-        expense = self.load_expense()
-        searchedExpenses = []
+    def search_expense(self, value):
+        """
+        Search expenses using a single value.
 
-        if not expense:
-            return False
+        The value can match:
+        - id       -> exact match
+        - amount   -> exact match
+        - category -> partial match
+        - description -> partial match
+        """
+        query = """
+            SELECT *
+            FROM expenses
+            WHERE id = ?
+            OR amount = ?
+            OR category LIKE ?
+            OR description LIKE ?
+            ORDER BY date DESC
+        """
 
-        for e in expense:
-            try:
-                if e["id"] == int(id):
-                    searchedExpenses.append(e)
-            except (ValueError, AttributeError):
-                pass
-            try:
-                if round(e["amount"], 0) == round(int(id), 0):
-                    searchedExpenses.append(e)
-            except (ValueError, AttributeError):
-                pass
-            try:
-                if id.lower() in e["category"].lower():
-                    searchedExpenses.append(e)
-            except (ValueError, AttributeError):
-                pass
-            try:
-                if id.lower() in e["description"].lower():
-                    searchedExpenses.append(e)
-            except Exception:
-                pass
-        return searchedExpenses
+        params = [
+            value,
+            value,
+            f"%{value}%",
+            f"%{value}%"
+        ]
+
+        with sqlite3.connect(self.DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(query, params).fetchall()
+            return rows
+
 
     def show_categories(self):
         expense = self.load_expense()
@@ -143,6 +117,7 @@ class Storage:
         else:
             return expenses
 
+
     def save_to_json(self, filename):
         expenses = self.load_expense()
 
@@ -152,6 +127,8 @@ class Storage:
             print("-" * 8, "|")
             return False
 
+        expenses = [dict(expense) for expense in expenses]
+
         self.parentPath.mkdir(parents=True, exist_ok=True)
 
         file = self.parentPath / f"{filename}.json"
@@ -159,8 +136,17 @@ class Storage:
         try:
             with open(file, "w") as f:
                 json.dump(expenses, f, indent=4, default=str)
+
+            # print(f"Expenses saved to {file}")
             return True
 
         except Exception as e:
             print(f"\tError: {e}")
             return False
+
+
+
+
+store = Storage()
+store.initialize_database()
+
